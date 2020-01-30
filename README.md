@@ -1,10 +1,10 @@
 # Cafeteira
-This project aims to automate my coffe machine using a atmega328p to set the time and control it.
+**This project aims to automate my coffe machine using a atmega328p to set the time and control it.**
 
-##Folders
+## Folders
 - codes: code developed up to now.
 
-##Codes
+## Codes
 - main.c: It contains the main functions and microcontroller configurations;
 - BT.c: Interface developed to serial communication;
 - BT.h: Header of serial interface;
