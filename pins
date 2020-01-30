@@ -1,0 +1,13 @@
+PC0 button1
+PC1 button2
+PC2 button3
+
+LCD
+
+PC4 RS
+PC5 RW
+PD2 enable
+PC0 PIN11
+PC1 PIN12
+PC2 PIN13
+PC3 PIN14
