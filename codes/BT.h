@@ -2,7 +2,7 @@
 	#include<stdint.h>
 	#define BLUETOOTH
 	#define F_CPU 2000000
-	#define BAUDRATE 2400
+	#define BAUDRATE 9600
 	#define PRESCALER ((F_CPU / (BAUDRATE * 16UL)) -1)
 	#define REPLY_OK 1
 	#define REPLY_NOK 0
