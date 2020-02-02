@@ -1,12 +1,12 @@
 //extern int contador;
 //extern int contador2;
 
-#include"display.h"
+#include"DISPLAY.h"
 #include<stdint.h>
 #include<avr/io.h>
 #include<stdlib.h>
 #include<stdio.h>
-
+#include<time.h>
 
 display_queue * display_initialization(display_queue *f){
 	f->hd = 0;
@@ -28,6 +28,51 @@ display_queue * display_initialization(display_queue *f){
 
 }
 
+
+void display_time_update(struct tm *local_time){
+	if (local_time->tm_sec < 59){
+			local_time->tm_sec += 1;
+		}
+	else{
+		local_time->tm_sec = 0;
+		if (local_time->tm_min < 59){
+			local_time->tm_min += 1;
+		}
+		else{
+			local_time->tm_min = 0;
+			if (local_time->tm_hour < 23){
+				local_time->tm_hour +=1;
+			}
+			else {
+				local_time->tm_hour = 0;
+				if (local_time->tm_mday < 30 && local_time->tm_mon != 1){
+					local_time->tm_mday += 1;
+				}
+				else if (local_time->tm_mday == 30 && ( local_time->tm_mon == 3 || local_time->tm_mon == 5 || local_time->tm_mon == 8 || local_time->tm_mon == 10)){
+					local_time->tm_mday = 1;
+					local_time->tm_mon += 1;
+				}
+				else if (local_time->tm_mday == 31 && ( local_time->tm_mon == 0 || local_time->tm_mon == 2 || local_time->tm_mon == 4 ||
+							local_time->tm_mon == 6 || local_time->tm_mon == 7 || local_time->tm_mon ==9)){
+					local_time->tm_mday = 1;
+					local_time->tm_mon +=1;
+				}
+				else if (local_time->tm_mday == 31 && local_time->tm_mon == 11){
+					local_time->tm_mday = 1;
+					local_time->tm_mon = 0;
+					local_time->tm_year +=1;
+				}
+				else if (local_time->tm_mday == 28 && local_time->tm_mon == 1){
+					local_time->tm_mday = 1;
+					local_time->tm_mon +=1;
+				}
+
+			}
+		}
+		
+
+	}
+}
 
 display_queue * remove_instruction(display_queue *f){
 
@@ -106,7 +151,7 @@ display_queue * create_instruction(display_queue *f, char c, int x, int y, int c
 }
 
 		
-display_queue * send_data(display_queue *f, display_7seg *d){
+display_queue * send_data(display_queue *f){
 
 	
 	if (f->hd == 0){

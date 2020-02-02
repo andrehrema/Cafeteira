@@ -2,71 +2,32 @@
 #include<avr/interrupt.h> // header de interrupções
 #include<avr/sleep.h> // header referente ao dormir
 #include<avr/fuse.h>
-#include"display.h"
+
 #include<time.h> // header com as referências de tempo (ano, mês, dia, hora, ...)
 #include<stdio.h>
 #include<stdlib.h>
 #include<stdint.h>
-#include"BT.h"
-#include"configure.h"
+
+#include"drivers/USART.h"
+#include"drivers/TIMER.h"
+#include"devices/DISPLAY.h"
+#include"devices/BT.h"
+
 
 void blink_led();
-uint16_t counter = 0;
-
-volatile BT_data *buffer_tx_bth;  //sending buffer, compiler doesn't optimize  volatile data type
-volatile BT_data *buffer_rx_bth; //receiving buffer, compiler doesn't optimize volatile data type
-
-char buffer_rx[40];
-int index_rx = 0;
-
-ISR (TIMER2_COMPA_vect){ //tratador de interrupção do timer
-
-	counter+=1; 
-}
-
-
-ISR(USART_RX_vect){ // receiving ISR
-	UCSR0B &= ~(1<<TXCIE0); //desabilitando interrupção por transmissão
-	
-	PORTB ^= 2;
-	/*(char resultado = UDR0; // criando variável e armazenando o valor recebido nela
-	
-	buffer_rx_bth = adiciona_inst_BT(buffer_rx_bth, resultado); //adicionando a informaçao na fila
-	*/
-
-	
-	buffer_rx[index_rx] = UDR0;
-	index_rx++;
-	UCSR0B |= (1<<TXCIE0); //reabilitando instrução por transmissão
-}
-
-ISR(USART_UDRE_vect){ //tratador de interrupção quando o buffer de transmissão estiver vazio
-	
-}
-
-ISR(USART_TX_vect){
-}
-
+extern uint16_t counter;
+extern volatile usart_buff usart_buff_rx;
+extern volatile usart_buff usart_buff_tx;
 
 int main (void){
-
-	buffer_rx_bth = malloc(sizeof(BT_data)); //allocating space for buffer_rx_bth
-	buffer_rx_bth->hd=0; // head = 0
-	buffer_rx_bth->tl=0; // tail = 0
-
-
 
 	display_queue *f_control = malloc(sizeof(display_queue));
 	f_control->hd = 0;
 	f_control->tl = 0;
 
-	display_7seg d; //cursor positioning
-
-
+	//display_7seg d; //cursor positioning
 	
-	//f = cria_instrucao(f, 0x80, POS_NULA, POS_NULA,0); // coloca o cursor no início da primeira linha
 	CLKPR = (1<<CLKPCE); // enabling bit writing in clock divider
-	//CLKPR = 6; // divisor do clock = 64; O QUE ERA 8 MHZ PASSA A SER 125 KHZ
  	CLKPR = 2; //clock divider = 4, from 8 MHz to 2 MHZ
 
 	DDRB = 6; //PB2 and PB1 = output
@@ -97,13 +58,10 @@ int main (void){
 
 	int index = -1;
 	
-	char comandos_conf_BT[] = "AT\nAT+BAUD4\nAT+NAMECAFETEIRA\nAT+PIN8324\n"; //commands of Bluetooth module
-		
 	int i=1;
 	int j=0;
-	BT_node *pointer = 0; 
 	
-	while(i<sizeof(comandos_conf_BT)){
+	while(i<2){
 
 		sei(); // enabling interruption 
 		set_sleep_mode(SLEEP_MODE_IDLE); //idle mode
@@ -168,46 +126,36 @@ int main (void){
 			}	
 		}*/
 		
-		if (buffer_rx[index_rx-1] == '|'){
+		if (received_message()){
+			
+			if(j==0){
 					
-			if ( UCSR0A & (1<<UDRE0)){
 				PORTB ^= 4;	//sending data
-				UDR0 = buffer_rx[j]; 
+				transmit(usart_buff_rx.buffer[usart_buff_rx.start]);
+				j++;
+			}
+			else if ( UCSR0A & (1<<UDRE0)){
 
-				if(buffer_rx[j] == '|'){ //verifica se é o fim de mensagem
-					//UCSR0B &= ~(1<<TXEN0); //desabilita interrupção
-					
-					//configure_USART(); 
-					//UCSR0B |= RXCIE0; //reabilitando a interrupção de rx
-					j = 0; // zerando o ponteiro
-					index_rx=0;
+				transmit(usart_buff_rx.buffer[usart_buff_rx.start]);
+				if (usart_buff_rx.buffer[usart_buff_rx.start] == '|'){
+					UCSR0B &= ~(1<<TXCIE0);
+					j=0;
 				}
-				else
-					j++;
 			}	
 		
 		}
 	
 	}
+
+
 	display_queue *f_display = malloc(sizeof(display_queue)); //fila de comandos do display
 	f_display = display_initialization(f_display); // iniciando a fila de comandos
 
-
-
-	TCCR2A = (1<<WGM21); //timer counts until OCRA value
-	//OCR2A = 125; //valor até onde o timer vai contar; preciso contar 125 vezes até 125
-	OCR2A  = 250; //OCRA value
-	
-	TIMSK2 = (1<<OCIE2A); // interruption when timer value == OCRA value
-	//TIMSK2 _SFR_MEM8 = OCIE2A; //habilita interrupção ao chegar no valor do compare A
-	//TCCR2B = 10; //timer conta até o valor definido no OCRA, dividindo o clock de 125Khz por 8 resultando em 15625 Hz
-	
-	TCCR2B = 2; // timer dividided by 8, from 2MHz to 250KHz
-	TCNT2 = 0; //timer intial value
+	configure_timer(); //code regarding timer configuration (driver/TIMER.c)
 	
 	
 	while (f_display->hd != 0){
-		f_display = send_data(f_display, &d);
+		f_display = send_data(f_display);
 	}
 	
 			
@@ -224,59 +172,19 @@ int main (void){
 			
 			
 			///////////////// time running ////////////////////
+			display_update(&local_time);
 			
-			if (local_time.tm_sec < 59){
-				local_time.tm_sec += 1;
-			}
-			else{
-				local_time.tm_sec = 0;
-				if (local_time.tm_min < 59){
-					local_time.tm_min += 1;
-				}
-				else{
-					local_time.tm_min = 0;
-					if (local_time.tm_hour < 23){
-						local_time.tm_hour +=1;
-					}
-					else {
-						local_time.tm_hour = 0;
-						if (local_time.tm_mday < 30 && local_time.tm_mon != 1){
-							local_time.tm_mday += 1;
-						}
-						else if (local_time.tm_mday == 30 && ( local_time.tm_mon == 3 || local_time.tm_mon == 5 || local_time.tm_mon == 8 || local_time.tm_mon == 10)){
-							local_time.tm_mday = 1;
-							local_time.tm_mon += 1;
-						}
-						else if (local_time.tm_mday == 31 && ( local_time.tm_mon == 0 || local_time.tm_mon == 2 || local_time.tm_mon == 4 || 
-									local_time.tm_mon == 6 || local_time.tm_mon == 7 || local_time.tm_mon ==9)){
-							local_time.tm_mday = 1;
-							local_time.tm_mon +=1;
-						}
-						else if (local_time.tm_mday == 31 && local_time.tm_mon == 11){
-							local_time.tm_mday = 1;
-							local_time.tm_mon = 0;
-							local_time.tm_year +=1;
-						}
-						else if (local_time.tm_mday == 28 && local_time.tm_mon == 1){
-							local_time.tm_mday = 1;
-							local_time.tm_mon +=1;
-						}
-
-					}
-				}
-			
-
-				sprintf(time, "%i%i/%i%i/%i %i%i:%i%i\n%i%i/%i%i/%i %i%i:%i%i\0", local_time.tm_mday/10, local_time.tm_mday%10, ( local_time.tm_mon+1)/10, ( local_time.tm_mon+1)%10, local_time.tm_year, local_time.tm_hour/10, local_time.tm_hour%10, local_time.tm_min/10,local_time.tm_min%10, target_time.tm_mday/10, target_time.tm_mday%10, (target_time.tm_mon+1)/10, (target_time.tm_mon+1)%10, target_time.tm_year, target_time.tm_hour/10, target_time.tm_hour%10, target_time.tm_min/10, target_time.tm_min%10);
+			sprintf(time, "%i%i/%i%i/%i %i%i:%i%i\n%i%i/%i%i/%i %i%i:%i%i\0", local_time.tm_mday/10, local_time.tm_mday%10, ( local_time.tm_mon+1)/10, ( local_time.tm_mon+1)%10, local_time.tm_year, local_time.tm_hour/10, local_time.tm_hour%10, local_time.tm_min/10,local_time.tm_min%10, target_time.tm_mday/10, target_time.tm_mday%10, (target_time.tm_mon+1)/10, (target_time.tm_mon+1)%10, target_time.tm_year, target_time.tm_hour/10, target_time.tm_hour%10, target_time.tm_min/10, target_time.tm_min%10);
 
 				
 				f_display = create_instruction(f_display, 0x01, 0, 0, 0); //apagando a tela do display
 				
 				index = 0;
-			}
+			
 			////////////////////////////////////////////////////////////////////////
 		}
 		if (f_display->hd != 0)
-			f_display = send_data(f_display, &d);
+			f_display = send_data(f_display);
 		
 		
 		//if (index>-1 && index<32){ // verifica se tem dados a serem enviados no display
@@ -288,8 +196,6 @@ int main (void){
 			//hd = envia_dados(hd, &d);
 			index++;
 		}
-
-
 		
 	}
 

@@ -7,6 +7,7 @@
 	#define POS_NULL 0
 
 	#include<stdint.h>
+	#include<time.h>
 
 	typedef struct node_instruction display_node;
 	typedef struct display display_7seg;
@@ -33,25 +34,13 @@
 
 
 
-	struct display{
-		int linha_escrita; //cima {1,2}
-		int coluna_escrita; //esquerda [1, 16]
-
-		int linha_prox;
-		int coluna_prox;
-
-		int linha_user;
-		int coluna_user;
-	};
-
-
-
 	//fila * configura_display(fila *f, display_7seg *d);
 
-	display_queue * initiate_display(display_queue *f);
+	display_queue * display_initialization(display_queue *f);
 	display_queue * remove_instruction (display_queue *f);
 	display_queue * add_instruction (display_queue *f, display_node *inst);
 	display_queue * create_instruction(display_queue* f, char c, int x, int y, int command_solo);
-	display_queue * send_data(display_queue *f, display_7seg *d);
+	display_queue * send_data(display_queue *f);
+	void display_update (struct tm *local_time);
 
 #endif
